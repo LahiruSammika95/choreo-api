@@ -8,7 +8,7 @@ type Country record {|
     int population;
     string region;
     string incomeLevel;
-    decimal caseFaitalityRatio;
+    // decimal caseFaitalityRatio;
 
 |};
 
