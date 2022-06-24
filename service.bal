@@ -1,17 +1,59 @@
 import ballerina/http;
 
-# A service representing a network-accessible API
-# bound to port `9090`.
-service / on new http:Listener(9090) {
+listener http:Listener httpListener = new (8080);
 
-    # A resource for generating greetings
-    # + name - the input string name
-    # + return - string name with hello message or error
-    resource function get greeting(string name) returns string|error {
-        // Send a response back to the caller.
-        if name is "" {
-            return error("name should not be empty!");
-        }
-        return "Hello, " + name;
+type Country record {|
+    string code;
+    string name;
+    int population;
+    string region;
+    string incomeLevel;
+    decimal caseFaitalityRatio;
+
+|};
+
+type CountryInfo record {
+
+    string? iso3;
+};
+
+type covidCountry record {
+
+    string country;
+    int cases;
+    int population;
+    CountryInfo countryInfo;
+    int deaths;
+
+};
+
+function getCovidCFR(string countryCode) returns Country|error {
+    http:Client covidData = check new ("https://disease.sh/v3/covid-19/");
+    covidCountry cdPayload = check covidData->get(string `countries/${countryCode}`);
+    var {country: name, cases, population, deaths} = cdPayload;
+    decimal caseFaitalityRatio = cfr(deaths, cases);
+    http:Client worldBank = check new ("http://api.worldbank.org/v2/");
+    xml wbPayload = check worldBank->get(string `country/${countryCode}`);
+    var [incomeLevel, region] = extractWBData(wbPayload);
+
+    return {code: countryCode, name, population, region, incomeLevel};
+}
+
+function cfr(int deaths, int cases) returns decimal => <decimal>deaths / <decimal>cases * 100;
+
+function extractWBData(xml wbPayload) returns [string, string] {
+    xmlns "http://www.worldbank.org" as wb;
+    xml incomeLevelElement = wbPayload/**/<wb:incomeLevel>;
+    xml regionElement = wbPayload/**/<wb:region>;
+    return [incomeLevelElement.data(), regionElement.data()];
+}
+
+service / on httpListener {
+    resource function get country/[string name]() returns Country|error {
+        return getCovidCFR(name);
     }
+}
+
+function test() returns error? {
+
 }
